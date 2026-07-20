@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  MONGODB_URI: "mongodb://admin:password123@mongodb-service:27017/portfolio_perso?authSource=admin"
+  PORT: "3000"
+  CLIENT_ORIGIN: "http://localhost"
+  NODE_ENV: "production"
