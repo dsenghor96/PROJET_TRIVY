@@ -54,6 +54,55 @@ pipeline {
             }
         }
 
+        stage('Trivy Security Scan') {
+            parallel {
+                stage('Backend') {
+                    steps {
+                        sh '''
+                            echo "=== Trivy scan (table) - Backend ==="
+                            docker run --rm \
+                              -v /var/run/docker.sock:/var/run/docker.sock \
+                              -v trivy-cache:/root/.cache/trivy \
+                              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 0 \
+                              "${BACKEND_IMAGE}"
+
+                            docker run --rm \
+                              -v /var/run/docker.sock:/var/run/docker.sock \
+                              -v trivy-cache:/root/.cache/trivy \
+                              --volumes-from portfolio_jenkins \
+                              -w "${WORKSPACE}" \
+                              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 0 \
+                              --format json -o trivy-backend-report.json \
+                              "${BACKEND_IMAGE}"
+                        '''
+                        archiveArtifacts artifacts: 'trivy-backend-report.json', allowEmptyArchive: true
+                    }
+                }
+                stage('Frontend') {
+                    steps {
+                        sh '''
+                            echo "=== Trivy scan (table) - Frontend ==="
+                            docker run --rm \
+                              -v /var/run/docker.sock:/var/run/docker.sock \
+                              -v trivy-cache:/root/.cache/trivy \
+                              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 0 \
+                              "${FRONTEND_IMAGE}"
+
+                            docker run --rm \
+                              -v /var/run/docker.sock:/var/run/docker.sock \
+                              -v trivy-cache:/root/.cache/trivy \
+                              --volumes-from portfolio_jenkins \
+                              -w "${WORKSPACE}" \
+                              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 0 \
+                              --format json -o trivy-frontend-report.json \
+                              "${FRONTEND_IMAGE}"
+                        '''
+                        archiveArtifacts artifacts: 'trivy-frontend-report.json', allowEmptyArchive: true
+                    }
+                }
+            }
+        }
+
         stage('Push Docker Images') {
             steps {
                 withCredentials([usernamePassword(
