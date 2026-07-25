@@ -34,11 +34,12 @@ pipeline {
                         sh '''
                             echo "=== Trivy fs - dependances npm (api + ux_react) ==="
                             docker run --rm \
-                              -v "${WORKSPACE}:/scan" \
                               -v trivy-cache:/root/.cache/trivy \
+                              --volumes-from portfolio_jenkins \
+                              -w "${WORKSPACE}" \
                               aquasec/trivy fs --severity HIGH,CRITICAL --exit-code 1 \
                               --skip-db-update --skip-dirs "**/node_modules" \
-                              /scan
+                              .
                         '''
                     }
                 }
@@ -47,11 +48,12 @@ pipeline {
                         sh '''
                             echo "=== Trivy repo - recherche de secrets (historique Git inclus) ==="
                             docker run --rm \
-                              -v "${WORKSPACE}:/repo" \
                               -v trivy-cache:/root/.cache/trivy \
+                              --volumes-from portfolio_jenkins \
+                              -w "${WORKSPACE}" \
                               aquasec/trivy repo --scanners secret --exit-code 1 \
                               --skip-dirs "**/node_modules" \
-                              /repo
+                              .
                         '''
                     }
                 }
@@ -60,11 +62,12 @@ pipeline {
                         sh '''
                             echo "=== Trivy config - misconfigurations Terraform ==="
                             docker run --rm \
-                              -v "${WORKSPACE}:/repo" \
                               -v trivy-cache:/root/.cache/trivy \
+                              --volumes-from portfolio_jenkins \
+                              -w "${WORKSPACE}" \
                               aquasec/trivy config --exit-code 1 \
-                              --ignorefile /repo/.trivyignore \
-                              /repo/terraform
+                              --ignorefile "${WORKSPACE}/.trivyignore" \
+                              terraform
                         '''
                     }
                 }
@@ -73,11 +76,12 @@ pipeline {
                         sh '''
                             echo "=== Trivy config - misconfigurations Kubernetes ==="
                             docker run --rm \
-                              -v "${WORKSPACE}:/repo" \
                               -v trivy-cache:/root/.cache/trivy \
+                              --volumes-from portfolio_jenkins \
+                              -w "${WORKSPACE}" \
                               aquasec/trivy config --exit-code 1 \
-                              --ignorefile /repo/.trivyignore \
-                              /repo/k8s
+                              --ignorefile "${WORKSPACE}/.trivyignore" \
+                              k8s
                         '''
                     }
                 }
@@ -290,4 +294,3 @@ pipeline {
         }
     }
 }
-
