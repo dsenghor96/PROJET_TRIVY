@@ -142,6 +142,17 @@ resource "aws_eks_cluster" "portfolio_cluster" {
     ]
   }
 
+  # Correctif AWS-0038 : active tous les logs du control plane
+  enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+
+  # Correctif AWS-0039 : chiffrement des secrets Kubernetes
+  encryption_config {
+    provider {
+      key_arn = aws_kms_key.eks_secrets.arn
+    }
+    resources = ["secrets"]
+  }
+
   depends_on = [
     aws_iam_role_policy_attachment.eks_cluster_policy
   ]
@@ -191,24 +202,6 @@ resource "aws_iam_openid_connect_provider" "eks_oidc" {
 
   tags = {
     Name    = "${var.project_name}-oidc"
-    Project = var.project_name
-  }
-}
-
-# EBS CSI Driver - Addon EKS managé
-resource "aws_eks_addon" "ebs_csi_driver" {
-  cluster_name             = aws_eks_cluster.portfolio_cluster.name
-  addon_name               = "aws-ebs-csi-driver"
-  service_account_role_arn = aws_iam_role.ebs_csi_irsa_role.arn
-  resolve_conflicts_on_create = "OVERWRITE"
-
-  depends_on = [
-    aws_eks_node_group.portfolio_nodes,
-    aws_iam_role_policy_attachment.ebs_csi_irsa_policy
-  ]
-
-  tags = {
-    Name    = "${var.project_name}-ebs-csi"
     Project = var.project_name
   }
 }
@@ -291,4 +284,95 @@ resource "aws_iam_role" "ebs_csi_irsa_role" {
 resource "aws_iam_role_policy_attachment" "ebs_csi_irsa_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
   role       = aws_iam_role.ebs_csi_irsa_role.name
+}
+
+# EBS CSI Driver - Addon EKS managé
+resource "aws_eks_addon" "ebs_csi_driver" {
+  cluster_name             = aws_eks_cluster.portfolio_cluster.name
+  addon_name               = "aws-ebs-csi-driver"
+  service_account_role_arn = aws_iam_role.ebs_csi_irsa_role.arn
+  resolve_conflicts_on_create = "OVERWRITE"
+
+  depends_on = [
+    aws_eks_node_group.portfolio_nodes,
+    aws_iam_role_policy_attachment.ebs_csi_irsa_policy
+  ]
+
+  tags = {
+    Name    = "${var.project_name}-ebs-csi"
+    Project = var.project_name
+  }
+}
+
+# ==============================================================================
+# CORRECTIFS SECURITE TRIVY
+# ==============================================================================
+
+# --- Correctif AWS-0039 : chiffrement des secrets EKS via KMS ---------------
+resource "aws_kms_key" "eks_secrets" {
+  description             = "Cle KMS pour chiffrement des secrets EKS - ${var.project_name}"
+  deletion_window_in_days = 7
+
+  tags = {
+    Name    = "${var.project_name}-eks-secrets-key"
+    Project = var.project_name
+  }
+}
+
+# --- Correctif AWS-0178 : VPC Flow Logs --------------------------------------
+resource "aws_cloudwatch_log_group" "vpc_flow_log" {
+  name              = "/aws/vpc-flow-log/${var.project_name}"
+  retention_in_days = 7
+
+  tags = {
+    Name    = "${var.project_name}-vpc-flow-log-group"
+    Project = var.project_name
+  }
+}
+
+resource "aws_iam_role" "vpc_flow_log_role" {
+  name = "${var.project_name}-vpc-flow-log-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "vpc-flow-logs.amazonaws.com"
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "vpc_flow_log_policy" {
+  name = "${var.project_name}-vpc-flow-log-policy"
+  role = aws_iam_role.vpc_flow_log_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams"
+      ]
+      Resource = "*"
+    }]
+  })
+}
+
+resource "aws_flow_log" "portfolio_vpc_flow_log" {
+  iam_role_arn    = aws_iam_role.vpc_flow_log_role.arn
+  log_destination = aws_cloudwatch_log_group.vpc_flow_log.arn
+  traffic_type    = "ALL"
+  vpc_id          = aws_vpc.portfolio_vpc.id
+
+  tags = {
+    Name    = "${var.project_name}-flow-log"
+    Project = var.project_name
+  }
 }

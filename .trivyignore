@@ -1,0 +1,4 @@
+# Faux positif : le scanner detecte "PORT" comme contenu sensible dans le
+# ConfigMap app-config, alors que c'est un simple numero de port reseau,
+# pas un secret. Voir scan Kubernetes du 2026-07-24.
+KSV-01010
