@@ -57,54 +57,28 @@ pipeline {
                 }
                 stage('Terraform Config') {
                     steps {
-                        script {
-                            // Vérifier si le dossier terraform existe
-                            if (fileExists('terraform')) {
-                                sh '''
-                                    echo "=== Trivy config - misconfigurations Terraform ==="
-                                    echo "Workspace: ${WORKSPACE}"
-                                    echo "Contenu du répertoire monté dans /repo:"
-                                    docker run --rm -v "${WORKSPACE}:/repo" aquasec/trivy ls -la /repo/
-                                    
-                                    echo "Vérification du fichier .trivyignore:"
-                                    docker run --rm -v "${WORKSPACE}:/repo" aquasec/trivy cat /repo/.trivyignore || echo "Fichier .trivyignore non trouvé"
-                                    
-                                    # Utiliser le chemin du workspace directement
-                                    docker run --rm \
-                                      -v "${WORKSPACE}:/repo" \
-                                      -v trivy-cache:/root/.cache/trivy \
-                                      -w /repo \
-                                      aquasec/trivy config --exit-code 1 \
-                                      --ignorefile .trivyignore \
-                                      terraform
-                                '''
-                            } else {
-                                echo "Le dossier terraform n'existe pas, scan ignoré"
-                            }
-                        }
+                        sh '''
+                            echo "=== Trivy config - misconfigurations Terraform ==="
+                            docker run --rm \
+                              -v "${WORKSPACE}:/repo" \
+                              -v trivy-cache:/root/.cache/trivy \
+                              aquasec/trivy config --exit-code 1 \
+                              --ignorefile /repo/.trivyignore \
+                              /repo/terraform
+                        '''
                     }
                 }
                 stage('Kubernetes Config') {
                     steps {
-                        script {
-                            if (fileExists('k8s')) {
-                                sh '''
-                                    echo "=== Trivy config - misconfigurations Kubernetes ==="
-                                    echo "Workspace: ${WORKSPACE}"
-                                    
-                                    # Utiliser le chemin du workspace directement
-                                    docker run --rm \
-                                      -v "${WORKSPACE}:/repo" \
-                                      -v trivy-cache:/root/.cache/trivy \
-                                      -w /repo \
-                                      aquasec/trivy config --exit-code 1 \
-                                      --ignorefile .trivyignore \
-                                      k8s
-                                '''
-                            } else {
-                                echo "Le dossier k8s n'existe pas, scan ignoré"
-                            }
-                        }
+                        sh '''
+                            echo "=== Trivy config - misconfigurations Kubernetes ==="
+                            docker run --rm \
+                              -v "${WORKSPACE}:/repo" \
+                              -v trivy-cache:/root/.cache/trivy \
+                              aquasec/trivy config --exit-code 1 \
+                              --ignorefile /repo/.trivyignore \
+                              /repo/k8s
+                        '''
                     }
                 }
             }
@@ -316,3 +290,4 @@ pipeline {
         }
     }
 }
+
