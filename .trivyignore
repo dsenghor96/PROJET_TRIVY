@@ -2,3 +2,17 @@
 # ConfigMap app-config, alors que c'est un simple numero de port reseau,
 # pas un secret. Voir scan Kubernetes du 2026-07-24.
 KSV-01010
+
+# Decision architecturale assumee (pas un oubli) : le cluster EKS reste
+# accessible publiquement car Jenkins tourne hors du VPC AWS (sur la
+# machine locale WSL2), donc un acces prive necessiterait un bastion +
+# tunnel SSH dans le Jenkinsfile - complexite jugee disproportionnee pour
+# ce projet pedagogique. Voir session du 2026-07-25.
+AWS-0040
+AWS-0041
+
+# Consequence directe du choix ci-dessus : les subnets doivent assigner
+# des IP publiques car il n'y a pas de NAT Gateway (architecture sans
+# subnet prive). Meme compromis assume.
+AWS-0164
+
