@@ -12,6 +12,9 @@ RUN npm run build
 # ---- Stage 2 : Serve ----
 FROM nginx:alpine
 
+# Patch des librairies de l'OS Alpine
+RUN apk update && apk upgrade --no-cache
+
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
