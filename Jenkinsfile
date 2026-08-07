@@ -42,12 +42,12 @@ pipeline {
                 stage('Filesystem') {
                     steps {
                         sh '''
-                            echo "=== Trivy fs - dependances npm (api + ux_react) ==="
+                            echo "=== Trivy fs - dependances npm & licences (api + ux_react) [Bloquant] ==="
                             docker run --rm \
                               -v trivy-cache:/root/.cache/trivy \
                               --volumes-from portfolio_jenkins \
                               -w "${WORKSPACE}" \
-                              aquasec/trivy fs --severity HIGH,CRITICAL --exit-code 0 \
+                              aquasec/trivy fs --scanners vuln,license --severity HIGH,CRITICAL --exit-code 1 \
                               --skip-db-update --skip-dirs "**/node_modules" \
                               .
                         '''
@@ -56,12 +56,12 @@ pipeline {
                 stage('Secrets') {
                     steps {
                         sh '''
-                            echo "=== Trivy repo - recherche de secrets (historique Git inclus) ==="
+                            echo "=== Trivy repo - recherche de secrets (historique Git inclus) [Bloquant] ==="
                             docker run --rm \
                               -v trivy-cache:/root/.cache/trivy \
                               --volumes-from portfolio_jenkins \
                               -w "${WORKSPACE}" \
-                              aquasec/trivy repo --scanners secret --exit-code 0 \
+                              aquasec/trivy repo --scanners secret --exit-code 1 \
                               --skip-dirs "**/node_modules" \
                               .
                         '''
@@ -70,12 +70,12 @@ pipeline {
                 stage('Terraform Config') {
                     steps {
                         sh '''
-                            echo "=== Trivy config - misconfigurations Terraform ==="
+                            echo "=== Trivy config - misconfigurations Terraform [Bloquant] ==="
                             docker run --rm \
                               -v trivy-cache:/root/.cache/trivy \
                               --volumes-from portfolio_jenkins \
                               -w "${WORKSPACE}" \
-                              aquasec/trivy config --exit-code 0 \
+                              aquasec/trivy config --severity HIGH,CRITICAL --exit-code 1 \
                               --ignorefile "${WORKSPACE}/.trivyignore" \
                               terraform
                         '''
@@ -84,12 +84,12 @@ pipeline {
                 stage('Kubernetes Config') {
                     steps {
                         sh '''
-                            echo "=== Trivy config - misconfigurations Kubernetes ==="
+                            echo "=== Trivy config - misconfigurations Kubernetes [Bloquant] ==="
                             docker run --rm \
                               -v trivy-cache:/root/.cache/trivy \
                               --volumes-from portfolio_jenkins \
                               -w "${WORKSPACE}" \
-                              aquasec/trivy config --exit-code 0 \
+                              aquasec/trivy config --severity HIGH,CRITICAL --exit-code 1 \
                               --ignorefile "${WORKSPACE}/.trivyignore" \
                               k8s
                         '''
@@ -141,14 +141,7 @@ pipeline {
                 stage('Backend') {
                     steps {
                         sh '''
-                            echo "=== Trivy scan (table) - Backend ==="
-                            docker run --rm \
-                              -v /var/run/docker.sock:/var/run/docker.sock \
-                              -v trivy-cache:/root/.cache/trivy \
-                              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 0 \
-                              --skip-db-update \
-                              "${BACKEND_IMAGE}"
-
+                            echo "=== Trivy scan (report JSON) - Backend ==="
                             docker run --rm \
                               -v /var/run/docker.sock:/var/run/docker.sock \
                               -v trivy-cache:/root/.cache/trivy \
@@ -158,6 +151,14 @@ pipeline {
                               --skip-db-update \
                               --format json -o trivy-backend-report.json \
                               "${BACKEND_IMAGE}"
+
+                            echo "=== Trivy scan bloquant (Quality Gate) - Backend ==="
+                            docker run --rm \
+                              -v /var/run/docker.sock:/var/run/docker.sock \
+                              -v trivy-cache:/root/.cache/trivy \
+                              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 1 \
+                              --skip-db-update \
+                              "${BACKEND_IMAGE}"
                         '''
                         archiveArtifacts artifacts: 'trivy-backend-report.json', allowEmptyArchive: true
                     }
@@ -165,14 +166,7 @@ pipeline {
                 stage('Frontend') {
                     steps {
                         sh '''
-                            echo "=== Trivy scan (table) - Frontend ==="
-                            docker run --rm \
-                              -v /var/run/docker.sock:/var/run/docker.sock \
-                              -v trivy-cache:/root/.cache/trivy \
-                              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 0 \
-                              --skip-db-update \
-                              "${FRONTEND_IMAGE}"
-
+                            echo "=== Trivy scan (report JSON) - Frontend ==="
                             docker run --rm \
                               -v /var/run/docker.sock:/var/run/docker.sock \
                               -v trivy-cache:/root/.cache/trivy \
@@ -181,6 +175,14 @@ pipeline {
                               aquasec/trivy image --severity HIGH,CRITICAL --exit-code 0 \
                               --skip-db-update \
                               --format json -o trivy-frontend-report.json \
+                              "${FRONTEND_IMAGE}"
+
+                            echo "=== Trivy scan bloquant (Quality Gate) - Frontend ==="
+                            docker run --rm \
+                              -v /var/run/docker.sock:/var/run/docker.sock \
+                              -v trivy-cache:/root/.cache/trivy \
+                              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 1 \
+                              --skip-db-update \
                               "${FRONTEND_IMAGE}"
                         '''
                         archiveArtifacts artifacts: 'trivy-frontend-report.json', allowEmptyArchive: true
